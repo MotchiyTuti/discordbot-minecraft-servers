@@ -30,4 +30,4 @@ Discordサーバーを管理・運用するための多機能Discordボットで
 
 ## ライセンス
 
-本プロジェクトは [MITライセンス](LICENSE) の下で公開されています。
+本プロジェクトは[MITライセンス](https://licenses.opensource.jp/MIT/MIT.html)の下で公開されています。
