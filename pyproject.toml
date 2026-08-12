@@ -1,3 +1,0 @@
-[tool.pyright]
-typeCheckingMode = "standard"
-reportMissingTypeStubs = false

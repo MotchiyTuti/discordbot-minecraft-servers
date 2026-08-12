@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Motchiy Discordbot OSS
 個人開発で作成したオープンソースのDiscord Botです。
 シンプルで拡張しやすい構成を意識して作られています。
@@ -9,4 +8,3 @@
 =======
 # Motchiy Discordbot Oss
 大まかな情報は[こちら](https://www.motchiy.com/discordbot-oss)に掲載しています。
->>>>>>> 6db863f (READMEを自分のサイトに移動)

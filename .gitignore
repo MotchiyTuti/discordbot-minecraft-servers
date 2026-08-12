@@ -1,0 +1,5 @@
+src/__pycache__/
+settings.toml
+token.txt
+mysql.toml
+venv/

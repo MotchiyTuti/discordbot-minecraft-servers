@@ -1,5 +1,6 @@
 import requests
 
+
 def format_uuid(uuid):
     """
     Format the UUID to include hyphens.
@@ -11,6 +12,7 @@ def format_uuid(uuid):
         str: The formatted UUID with hyphens.
     """
     return f"{uuid[:8]}-{uuid[8:12]}-{uuid[12:16]}-{uuid[16:20]}-{uuid[20:]}"
+
 
 def get_uuid_from_name(player_name):
     """
@@ -35,6 +37,7 @@ def get_uuid_from_name(player_name):
     else:
         print(f"Error: Unable to fetch UUID. HTTP Status Code: {response.status_code}")
         return None
+
 
 if __name__ == "__main__":
     player_name = input("Enter the Minecraft player name: ")

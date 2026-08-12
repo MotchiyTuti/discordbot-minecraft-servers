@@ -1,15 +1,14 @@
-from pathlib import Path
-from tomlkit import table, dumps, parse
-import subprocess
-import tomllib
-import random
-import os
 import asyncio
+import os
+import random
+import subprocess
+from datetime import date, datetime, timezone
+from pathlib import Path
 from typing import Any
-from typing import cast
+
 import discord
-import discord
-from typing import Any, Dict
+import tomllib
+from tomlkit import dumps, parse, table
 
 
 def execute(command):
@@ -25,23 +24,24 @@ def load_system_messages() -> dict[str, Any]:
         with p.open("rb") as f:
             message_toml = tomllib.load(f)
         return message_toml.get("system", {})
-    except Exception:
+    except (OSError, tomllib.TOMLDecodeError):
         return {}
-    
+
+
 system_messages = load_system_messages()
 
 
 def get_permission(member):
-    roles_order = ['admin', 'mod', 'staff', 'everyone']
-    member_roles = {role.name for role in getattr(member, 'roles', [])}
+    roles_order = ["admin", "mod", "staff", "everyone"]
+    member_roles = {role.name for role in getattr(member, "roles", [])}
     for role in roles_order:
         if role in member_roles:
             return role
-    return 'everyone'
+    return "everyone"
 
 
 def hasPermission(member, required_role):
-    roles_order = ['everyone', 'staff', 'mod', 'admin']
+    roles_order = ["everyone", "staff", "mod", "admin"]
     member_role = get_permission(member)
     try:
         member_idx = roles_order.index(member_role)
@@ -54,30 +54,23 @@ def hasPermission(member, required_role):
 class send:
     @staticmethod
     async def message(content: str, message) -> None:
-        # 先頭に確実な空行を入れる
         content = "\n" + content
 
         print(content)
         if message is None:
             return
 
-        # --- 送信先の判定 ---
         target_send = None
 
-        # 1. 通常の Message
         if isinstance(message, discord.Message):
             target_send = message.channel.send
 
-        # 2. Interaction
         elif isinstance(message, discord.Interaction):
             if not message.response.is_done():
-                # 最初の1回だけ
                 target_send = message.response.send_message
             else:
-                # 2回目以降は followup
                 target_send = message.followup.send
 
-        # 3. その他 send() を持つオブジェクト
         elif hasattr(message, "send"):
             target_send = message.send
 
@@ -85,36 +78,35 @@ class send:
             print("No valid target to send message.")
             return
 
-        # --- 2000文字分割送信 ---
         MAX_LEN = 2000
         try:
             for i in range(0, len(content), MAX_LEN):
-                chunk = content[i:i + MAX_LEN]
+                chunk = content[i : i + MAX_LEN]
                 await target_send(chunk)
-        except Exception as e:
+        except discord.HTTPException as e:
             print(f"Failed to send message: {e}")
 
 
-
 def select_option(items):
-    options = [x for x in items if x.startswith('--')]
-    args = [x for x in items if not x.startswith('--')]
+    options = [x for x in items if x.startswith("--")]
+    args = [x for x in items if not x.startswith("--")]
     return options, args
 
 
 def random_path():
-    chars = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+    chars = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
     while True:
-        dirname = ''.join(random.choices(chars, k=8))
-        full_path = os.path.join('output', dirname)
+        dirname = "".join(random.choices(chars, k=8))
+        full_path = os.path.join("output", dirname)
         if not os.path.exists(full_path):
             return dirname
 
 
 def create_empty_toml(path: Path):
     empty_data = table()
-    with path.open('w', encoding='utf-8') as f:
+    with path.open("w", encoding="utf-8") as f:
         f.write(dumps(empty_data))
+
 
 def unwrap_toml(value):
     if isinstance(value, dict):
@@ -141,7 +133,7 @@ class load_settings:
         with path.open("r", encoding="utf-8") as f:
             data = parse(f.read())
 
-        self._settings: Dict[str, Any] = unwrap_toml(data)
+        self._settings: dict[str, Any] = unwrap_toml(data)
 
     # -----------------------------
     # 追加：辞書アクセスを可能にする
@@ -188,9 +180,9 @@ class load_settings:
 
 settings = load_settings()  # グローバルインスタンス
 
-    # -----------------------------
-    # ここで設定読み込み部分終了
-    # -----------------------------
+# -----------------------------
+# ここで設定読み込み部分終了
+# -----------------------------
 
 
 async def get_user_input(prompt: str, message: discord.Message) -> str:
@@ -201,8 +193,28 @@ async def get_user_input(prompt: str, message: discord.Message) -> str:
 
     try:
         bot = message._state._get_client()
-        response = await bot.wait_for('message', check=check, timeout=60.0)
+        response = await bot.wait_for("message", check=check, timeout=60.0)
         return response.content
     except asyncio.TimeoutError:
-        await send.message("タイムアウトしました。もう一度やり直してください。", message)
+        await send.message(
+            "タイムアウトしました。もう一度やり直してください。", message
+        )
         return ""
+
+
+def future(mm_dd: str) -> str:
+    today = datetime.now(timezone.utc).date()
+    month, day = map(int, mm_dd.split("-"))
+    target = date(today.year, month, day)
+    if target <= today:
+        target = date(today.year + 1, month, day)
+    return target.strftime("%Y-%m-%d")
+
+
+def past(mm_dd: str) -> str:
+    today = datetime.now(timezone.utc).date()
+    month, day = map(int, mm_dd.split("-"))
+    target = date(today.year, month, day)
+    if target >= today:
+        target = date(today.year - 1, month, day)
+    return target.strftime("%Y-%m-%d")

@@ -1,4 +1,7 @@
+import subprocess
+
 from .util import execute, send
+
 
 async def modify_whitelist(message, usernames, action):
     try:
@@ -7,9 +10,15 @@ async def modify_whitelist(message, usernames, action):
             execute(f'tmux send-keys -t proxy_sv "vwl {action} .{username}" ENTER')
 
         action_text = "added to" if action == "add" else "removed from"
-        await send.message(f'Users {", ".join(usernames)} have been {action_text} the whitelist.', message)
-    except Exception as e:
-        await send.message(f'An error occurred while processing the whitelist modification: {e}', message)
+        await send.message(
+            f"Users {', '.join(usernames)} have been {action_text} the whitelist.",
+            message,
+        )
+    except subprocess.CalledProcessError as e:
+        await send.message(
+            f"An error occurred while executing command: {e}",
+            message,
+        )
 
 
 async def allow(message, *usernames):

@@ -1,16 +1,14 @@
-import tomllib
-import pymysql
 import asyncio
-import src.date as date
-from datetime import datetime
-from src.util import get_user_input, send, settings
+from datetime import datetime, timezone
 
-mysql_toml_path = settings['paths']['mysql_toml']
-with open(mysql_toml_path, "rb") as f:
-    config = tomllib.load(f)
+import pymysql
+import tomllib
+
+from src.util import future, get_user_input, send, settings
+
 
 def update_or_insert_birthday_present(connection, name, birthday, amount, request):
-    current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    current_date = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     with connection.cursor() as cursor:
         check_sql = """
         SELECT amount, request FROM birthday_presents WHERE name = %s AND birthday = %s
@@ -27,7 +25,10 @@ def update_or_insert_birthday_present(connection, name, birthday, amount, reques
             SET amount = %s, request = %s, updated_at = %s
             WHERE name = %s AND birthday = %s
             """
-            cursor.execute(update_sql, (new_amount, new_request.strip(), current_date, name, birthday))
+            cursor.execute(
+                update_sql,
+                (new_amount, new_request.strip(), current_date, name, birthday),
+            )
         else:
             insert_sql = """
             INSERT INTO birthday_presents (name, birthday, amount, request, created_at)
@@ -38,23 +39,27 @@ def update_or_insert_birthday_present(connection, name, birthday, amount, reques
         connection.commit()
         print("データベースが更新されました。")
 
+
 def parse_command_input(content: str) -> dict[str, str]:
     parts = content.split()
     parsed_data = {}
 
     try:
-        parsed_data['name'] = parts[0]
-        parsed_data['birthday'] = parts[1]
-        parsed_data['amount'] = parts[2]
-        parsed_data['request'] = " ".join(parts[3:])
+        parsed_data["name"] = parts[0]
+        parsed_data["birthday"] = parts[1]
+        parsed_data["amount"] = parts[2]
+        parsed_data["request"] = " ".join(parts[3:])
     except IndexError:
-        raise ValueError("入力形式が正しくありません。名前、誕生日、金額、リクエストの順で入力してください。")
+        raise ValueError(
+            "入力形式が正しくありません。名前、誕生日、金額、リクエストの順で入力してください。"
+        )
 
     return parsed_data
 
+
 def calculate_next_birthday(birthday: str) -> str:
-    birth_date = datetime.strptime(birthday, "%Y-%m-%d")
-    today = datetime.now()
+    birth_date = datetime.strptime(birthday, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    today = datetime.now(timezone.utc)
 
     next_birthday = birth_date.replace(year=today.year)
 
@@ -63,6 +68,7 @@ def calculate_next_birthday(birthday: str) -> str:
 
     return next_birthday.strftime("%Y-%m-%d")
 
+
 def normalize_birthday_format(birthday: str) -> str:
     birthday = birthday.replace("/", "-")
 
@@ -70,32 +76,38 @@ def normalize_birthday_format(birthday: str) -> str:
         birthday = f"{birthday[:2]}-{birthday[2:]}"
 
     try:
-        datetime.strptime(birthday, "%m-%d")
+        datetime.strptime(birthday, "%m-%d").replace(tzinfo=timezone.utc)
     except ValueError:
-        raise ValueError("誕生日の形式が正しくありません。MM-DD、MM/DD、またはMMDD形式で入力してください。")
+        raise ValueError(
+            "誕生日の形式が正しくありません。MM-DD、MM/DD、またはMMDD形式で入力してください。"
+        )
 
     return birthday
 
+
 async def get_user_input_with_control(prompt: str, message, previous_value=None):
     while True:
-        await send.message(f"{prompt}\n(入力を中断するには 'cancel' と入力してください。\n前の選択に戻るには 'back' と入力してください。)", message)
+        await send.message(
+            f"{prompt}\n(入力を中断するには 'cancel' と入力してください。\n前の選択に戻るには 'back' と入力してください。)",
+            message,
+        )
 
         def check(m):
             return m.author == message.author and m.channel == message.channel
 
         try:
             bot = message._state._get_client()
-            response = await bot.wait_for('message', check=check, timeout=60.0)
+            response = await bot.wait_for("message", check=check, timeout=60.0)
             content = response.content.strip()
 
-            if content.lower() == 'cancel':
+            if content.lower() == "cancel":
                 await send.message("操作を中断しました。", message)
-                return None, 'cancel'
+                return None, "cancel"
 
-            if content.lower() == 'back':
+            if content.lower() == "back":
                 if previous_value is not None:
                     await send.message(f"前の選択に戻ります: {previous_value}", message)
-                    return previous_value, 'back'
+                    return previous_value, "back"
                 else:
                     await send.message("戻る選択肢がありません。", message)
                     continue
@@ -103,39 +115,51 @@ async def get_user_input_with_control(prompt: str, message, previous_value=None)
             return content, None
 
         except asyncio.TimeoutError:
-            await send.message("タイムアウトしました。もう一度やり直してください。", message)
-            return None, 'cancel'
+            await send.message(
+                "タイムアウトしました。もう一度やり直してください。", message
+            )
+            return None, "cancel"
 
 
 async def main(message):
+    mysql_toml_path = settings["paths"]["mysql_toml"]
+
+    def load_config():
+        with open(mysql_toml_path, "rb") as f:
+            return tomllib.load(f)
+
+    config = await asyncio.to_thread(load_config)
+
     command_content = message.content.strip()
 
     if command_content.startswith("!present"):
-        command_args = command_content[len("!present"):].strip()
+        command_args = command_content[len("!present") :].strip()
 
         if command_args:
             try:
                 data = parse_command_input(command_args)
-                name = data['name']
-                birthday = normalize_birthday_format(data['birthday'])
-                amount = data['amount']
-                request = data['request']
+                name = data["name"]
+                birthday = normalize_birthday_format(data["birthday"])
+                amount = data["amount"]
+                request = data["request"]
             except ValueError as e:
-                await send.message(f"エラー: {str(e)}", message)
+                await send.message(f"エラー: {e!s}", message)
                 return
         else:
             name = await get_user_input("名前を入力してください：", message)
             if not name:
                 return
 
-            birthday = await get_user_input("誕生日を MM-DD、MM/DD、または MMDD 形式で入力してください：", message)
+            birthday = await get_user_input(
+                "誕生日を MM-DD、MM/DD、または MMDD 形式で入力してください：", message
+            )
             if not birthday:
                 return
 
             try:
                 birthday = normalize_birthday_format(birthday)
             except ValueError as e:
-                await send.message(f"エラー: {str(e)}", message)
+                await send.message(f"エラー: {e!s}", message)
                 return
 
             amount = await get_user_input("金額を入力してください：", message)
@@ -143,7 +167,9 @@ async def main(message):
                 await send.message("金額は数字で入力してください。", message)
                 return
 
-            request = await get_user_input("リクエスト内容を入力してください：", message)
+            request = await get_user_input(
+                "リクエスト内容を入力してください：", message
+            )
             if not request:
                 return
 
@@ -155,18 +181,21 @@ async def main(message):
             user=config["user"],
             password=config["password"],
             database=config["database"],
-            port=config.get("port", 3306)
+            port=config.get("port", 3306),
         )
 
         try:
             update_or_insert_birthday_present(
                 connection,
                 name=name,
-                birthday=date.future(birthday),
+                birthday=future(birthday),
                 amount=int(amount),
-                request=request
+                request=request,
             )
         finally:
             connection.close()
         await send.message("データベースが正常に更新されました。", message)
-        await send.message(f"名前: {name}, 誕生日: {birthday}, 金額: {amount}, リクエスト: {request}", message)
+        await send.message(
+            f"名前: {name}, 誕生日: {birthday}, 金額: {amount}, リクエスト: {request}",
+            message,
+        )

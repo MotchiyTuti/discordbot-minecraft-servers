@@ -9,7 +9,7 @@ servers_file = "/mnt/game/servers.toml"
 download_dir = "/var/www/html/discord-downloads"
 
 # Path to the message TOML file
-message_toml = "/home/motchiy/discordbot/message.toml"
+message_toml = "/home/motchiy/motchiy-discordbot-oss/message.toml"
 
 # Path to the log file
 log_file = "/var/log/discordbot.log"
@@ -18,7 +18,7 @@ log_file = "/var/log/discordbot.log"
 tmux_executable = "tmux"
 
 # Path to the MySQL configuration TOML file
-mysql_toml = "/home/motchiy/discordbot/mysql.toml"
+mysql_toml = "/home/motchiy/motchiy-discordbot-oss/mysql.toml"
 
 [channel_ids]
 developer = 1472408964586143744
